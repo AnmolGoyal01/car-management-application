@@ -74,13 +74,28 @@ const getAllCars = asyncHandler(
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 10;
         const skip = (page - 1) * limit;
+        const search = req.query.search as string;
+        const sortBy = (req.query.sortBy as string) || "createdAt"; // Default sorting by createdAt
+        const sortOrder = req.query.sortOrder === "asc" ? 1 : -1; // Default is descending
 
-        const cars = await Car.find()
+        let filter = {};
+        if (search) {
+            filter = {
+                $or: [
+                    { title: { $regex: search, $options: "i" } },
+                    { description: { $regex: search, $options: "i" } },
+                    { tags: { $regex: search, $options: "i" } },
+                ],
+            };
+        }
+
+        const cars = await Car.find(filter)
+            .sort({ [sortBy]: sortOrder })
             .skip(skip)
             .limit(limit)
             .populate("owner", "userName fullName");
 
-        const totalCars = await Car.countDocuments();
+        const totalCars = await Car.countDocuments(filter);
         const totalPages = Math.ceil(totalCars / limit);
 
         res.status(200).json(
@@ -105,13 +120,29 @@ const getUserCars = asyncHandler(
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 10;
         const skip = (page - 1) * limit;
+        const search = req.query.search as string;
+        const sortBy = (req.query.sortBy as string) || "createdAt"; // Default: Sort by newest
+        const sortOrder = req.query.sortOrder === "asc" ? 1 : -1; // Default: Descending
 
-        const cars = await Car.find({ owner: user._id })
+        // Search filter
+        let filter: any = { owner: user._id };
+        if (search) {
+            filter.$or = [
+                { title: { $regex: search, $options: "i" } },
+                { description: { $regex: search, $options: "i" } },
+                { tags: { $regex: search, $options: "i" } },
+            ];
+        }
+
+        // Fetch cars with search, sorting, and pagination
+        const cars = await Car.find(filter)
+            .sort({ [sortBy]: sortOrder })
             .skip(skip)
             .limit(limit)
             .populate("owner", "userName fullName");
 
-        const totalCars = await Car.countDocuments();
+        // Count total matching cars
+        const totalCars = await Car.countDocuments(filter);
         const totalPages = Math.ceil(totalCars / limit);
 
         res.status(200).json(
@@ -123,7 +154,7 @@ const getUserCars = asyncHandler(
                     totalPages,
                     currentPage: page,
                 },
-                "Cars retrieved successfully"
+                "User's cars retrieved successfully"
             )
         );
     }
